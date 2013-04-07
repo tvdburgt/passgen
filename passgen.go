@@ -16,20 +16,24 @@ const (
 	Lower    = 1 << iota       // Lower case letters [a-z]
 	Upper                      // Upper case letters [A-Z]
 	Digit                      // Decimal digits [0-9]
-	Punct                      // Punctuation characters
-	Space                      // White space characters
-	Symbol                     // Symbolic characters (incomplete set: [<>|^`~])
-	Complete = (1 << iota) - 1 // Set of all printable characters
+	Punct                      // Punctuation chars [?]%.&"\'{,#*;}@[(!)_-:/]
+	Space                      // White space chars
+	Symbol                     // Symbolic characters [=|<^$>~]
+	Complete = (1 << iota) - 1 // Set of all printable chars
 )
 
-// Generates a cryptographically secure password, by reading from crypto's
-// rand.Reader. Charset constraints can be applied using the flags parameter.
+// Instance of random generator. By default, this is /dev/urandom (unix) or
+// CryptGenRandom (Windows).
+var Reader = rand.Reader
+
+// Generates a cryptographically secure password by reading from passgen.Reader.
+// Charset constraints can be applied using the flags parameter.
 func Generate(size, flags int) ([]byte, error) {
 
 	pass := make([]byte, size)
 
 	for i := 0; i < size; {
-		n, err := rand.Int(rand.Reader, big.NewInt(charRange))
+		n, err := rand.Int(Reader, big.NewInt(charRange))
 		if err != nil {
 			return nil, err
 		}
