@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"io"
 	"math"
 )
 
@@ -14,22 +13,22 @@ import (
 type CharSet uint8
 
 const (
-	// Bitmask flags for creating a permutation characters sets.
+	// Bitmask flags for creating a permutation of characters sets.
 	SetLower    CharSet = 1 << iota       // Lower case letters [a-z]
-	SetUpper                                  // Upper case letters [A-Z]
-	SetDigit                                  // Decimal digits [0-9]
-	SetPunct                                  // Punctuation chars [!"#%&'()*,-./:;?@[\]_{}]
-	SetSymbol                                 // Symbolic chars [$+<=>^`|~]
-	SetSpace                                  // White space char
+	SetUpper                              // Upper case letters [A-Z]
+	SetDigit                              // Decimal digits [0-9]
+	SetPunct                              // Punctuation chars [!"#%&'()*,-./:;?@[\]_{}]
+	SetSymbol                             // Symbolic chars [$+<=>^`|~]
+	SetSpace                              // White space char
 	SetComplete CharSet = (1 << iota) - 1 // Set of all printable chars
 )
 
 var (
-	// Instance of random generator. Defaults to Reader from crypto/rand.
-	Reader io.Reader = rand.Reader
+	// Instance of random source reader. Defaults to Reader from crypto/rand.
+	Reader = rand.Reader
 
 	ErrLength = errors.New("passgen: invalid password length")
-	ErrSet = errors.New("passgen: character set is empty")
+	ErrSet    = errors.New("passgen: character set is empty")
 
 	charSets = [...]string{
 		"abcdefghijklmnopqrstuvwxyz",
@@ -61,7 +60,7 @@ func (set CharSet) table() []byte {
 }
 
 // Generates a uniform password by reading random bytes from Reader.
-// Character set constraints can be passed using the CharSet parameter s.
+// The password space can be defined with the CharSet parameter s.
 func Generate(n int, s CharSet) ([]byte, error) {
 	if n <= 0 {
 		return nil, ErrLength
@@ -104,23 +103,25 @@ func Generate(n int, s CharSet) ([]byte, error) {
 }
 
 // Generates a uniformly distributed hex string (base16) with length n.
-func Hex(n int) ([]byte, error) {
+func GenerateHex(n int) ([]byte, error) {
 	if n <= 0 {
 		return nil, ErrLength
 	}
 
-	randBytes := make([]byte, hex.DecodedLen(n+1))
-	hexBytes := make([]byte, n+1)
+	m := n
+	// Add an additional byte if length is odd
+	if n%2 != 0 {
+		m = n + 1
+	}
 
-	if _, err := rand.Read(randBytes); err != nil {
+	src := make([]byte, hex.DecodedLen(m)) // Random bytes
+	dst := make([]byte, m)                 // Hexadecimal bytes
+
+	if _, err := Reader.Read(src); err != nil {
 		return nil, err
 	}
 
-	hex.Encode(hexBytes, randBytes)
+	hex.Encode(dst, src)
 
-	if n%2 == 1 {
-		return hexBytes[:n], nil
-	}
-
-	return hexBytes, nil
+	return dst[:n], nil
 }
