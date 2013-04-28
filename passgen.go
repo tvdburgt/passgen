@@ -4,7 +4,6 @@
 
 // Package passgen implements several fine-grained random password generator
 // functions.
-
 package passgen
 
 import (
