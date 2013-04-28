@@ -1,9 +1,17 @@
+// Copright (c) 2013 Tijmen van der Burgt
+// Use of this source code is governed by the MIT license,
+// that can be found in the LICENSE file.
+
+// Package passgen implements several fine-grained random password generator
+// functions.
+
 package passgen
 
 import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"io"
 	"math"
 )
 
@@ -24,9 +32,6 @@ const (
 )
 
 var (
-	// Instance of random source reader. Defaults to Reader from crypto/rand.
-	Reader = rand.Reader
-
 	ErrLength = errors.New("passgen: invalid password length")
 	ErrSet    = errors.New("passgen: character set is empty")
 
@@ -39,6 +44,11 @@ var (
 		" ",
 	}
 )
+
+// Reader is a global instance of a random reader, used by the random password
+// generator functions in this package. Reader defaults to the cryptographically
+// secure pseudo-random generator in crypto/rand.
+var Reader io.Reader = rand.Reader
 
 func (set CharSet) cardinality() (c int) {
 	for i, s := range charSets {
@@ -59,7 +69,7 @@ func (set CharSet) table() []byte {
 	return table
 }
 
-// Generates a uniform password by reading random bytes from Reader.
+// Generates a uniformly distributed random password with length n.
 // The password space can be defined with the CharSet parameter s.
 func Generate(n int, s CharSet) ([]byte, error) {
 	if n <= 0 {
@@ -102,7 +112,7 @@ func Generate(n int, s CharSet) ([]byte, error) {
 	return pass, nil
 }
 
-// Generates a uniformly distributed hex string (base16) with length n.
+// Generates a uniformly distributed random hex string (base16) with length n.
 func GenerateHex(n int) ([]byte, error) {
 	if n <= 0 {
 		return nil, ErrLength
