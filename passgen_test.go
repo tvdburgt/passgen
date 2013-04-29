@@ -20,6 +20,12 @@ func (src *randSource) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
+func Benchmark256Base32(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		GenerateBase32(256)
+	}
+}
+
 func Benchmark256Hex(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		GenerateHex(256)
@@ -38,7 +44,7 @@ func Benchmark256LowerDigit(b *testing.B) {
 	}
 }
 
-func TestCharRange(t *testing.T) {
+func TestGenerateCharRange(t *testing.T) {
 	pass, err := Generate(1000, SetComplete)
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +60,21 @@ func TestCharRange(t *testing.T) {
 	}
 }
 
-func TestLen(t *testing.T) {
+func TestGenerateWithoutSymbols(t *testing.T) {
+	mask := SetComplete &^ SetSymbol
+	pass, err := Generate(1000, mask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range pass {
+		if unicode.IsSymbol(rune(b)) {
+			t.Errorf("Encountered symbol '%c' with mask %b",
+				b, mask)
+		}
+	}
+}
+
+func TestGenerateLen(t *testing.T) {
 	n := 32
 	pass, err := Generate(n, SetComplete)
 	if err != nil {
@@ -90,6 +110,24 @@ func TestGenerateHex(t *testing.T) {
 	Reader = crand.Reader
 }
 
+func TestGenerateBase32(t *testing.T) {
+	Reader = &randSource{rand.NewSource(0)}
+
+	expected := []byte("AHAHGYSKV44XQUKO7BCDXMVILHDV7Q6MNLZG2WVKECJG6BDLVJTOZENFUJ4UGI6C")
+	pass, err := GenerateBase32(len(expected))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if bytes.Compare(pass, expected) != 0 {
+		t.Errorf(`Passwords don't match:
+	Expected:  %s
+	Generated: %s`, expected, pass)
+	}
+
+	Reader = crand.Reader
+}
+
 func TestGenerate(t *testing.T) {
 	Reader = &randSource{rand.NewSource(0)}
 
@@ -107,18 +145,4 @@ func TestGenerate(t *testing.T) {
 	}
 
 	Reader = crand.Reader
-}
-
-func TestWithoutSymbols(t *testing.T) {
-	mask := SetComplete &^ SetSymbol
-	pass, err := Generate(1000, mask)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, b := range pass {
-		if unicode.IsSymbol(rune(b)) {
-			t.Errorf("Encountered symbol '%c' with mask %b",
-				b, mask)
-		}
-	}
 }

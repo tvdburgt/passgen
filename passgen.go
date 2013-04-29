@@ -8,6 +8,7 @@ package passgen
 
 import (
 	"crypto/rand"
+	"encoding/base32"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -48,6 +49,10 @@ var (
 // generator functions in this package. Reader defaults to the cryptographically
 // secure pseudo-random generator in crypto/rand.
 var Reader io.Reader = rand.Reader
+
+// Base32Alphabet is the encoding alphabet used by the base32 generator
+// function. Base32Alphabet defaults to base32.StdEncoding (see RFC 4648).
+var Base32Alphabet *base32.Encoding = base32.StdEncoding
 
 func (set CharSet) cardinality() (c int) {
 	for i, s := range charSets {
@@ -117,11 +122,9 @@ func GenerateHex(n int) ([]byte, error) {
 		return nil, ErrLength
 	}
 
-	m := n
-	// Add an additional byte if length is odd
-	if n%2 != 0 {
-		m = n + 1
-	}
+	// Add additional byte if length is odd (hex encoding works with
+	// multiples of 2 bytes)
+	m := n + n%2
 
 	src := make([]byte, hex.DecodedLen(m)) // Random bytes
 	dst := make([]byte, m)                 // Hexadecimal bytes
@@ -131,6 +134,31 @@ func GenerateHex(n int) ([]byte, error) {
 	}
 
 	hex.Encode(dst, src)
+
+	return dst[:n], nil
+}
+
+// Generates a uniformly distributed random base32 string with length n.
+func GenerateBase32(n int) ([]byte, error) {
+	if n <= 0 {
+		return nil, ErrLength
+	}
+
+	m := n
+	// Clamp length to nearest multiple of 8 (base32 encoding works with
+	// multiples of 8 bytes)
+	if offset := m % 8; offset != 0 {
+		m += 8 - offset
+	}
+
+	src := make([]byte, Base32Alphabet.DecodedLen(m))
+	dst := make([]byte, m)
+
+	if _, err := Reader.Read(src); err != nil {
+		return nil, err
+	}
+
+	Base32Alphabet.Encode(dst, src)
 
 	return dst[:n], nil
 }
