@@ -101,7 +101,7 @@ func TestGenerateHex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(pass, expected) != 0 {
+	if !bytes.Equal(pass, expected) {
 		t.Errorf(`Passwords don't match:
 	Expected:  %s
 	Generated: %s`, expected, pass)
@@ -119,7 +119,7 @@ func TestGenerateBase32(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(pass, expected) != 0 {
+	if !bytes.Equal(pass, expected) {
 		t.Errorf(`Passwords don't match:
 	Expected:  %s
 	Generated: %s`, expected, pass)
@@ -138,7 +138,7 @@ func TestGenerate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if bytes.Compare(pass, expected) != 0 {
+	if !bytes.Equal(pass, expected) {
 		t.Errorf(`Passwords don't match:
 	Expected:  %s
 	Generated: %s`, expected, pass)
