@@ -34,6 +34,7 @@ const (
 var (
 	ErrLength = errors.New("passgen: invalid password length")
 	ErrSet    = errors.New("passgen: character set is empty")
+	ErrRead   = errors.New("passgen: read failed")
 
 	charSets = [...]string{
 		"abcdefghijklmnopqrstuvwxyz",
@@ -73,6 +74,21 @@ func (set CharSet) table() []byte {
 	return table
 }
 
+func readRandomBytes(buf []byte) error {
+	n := 0
+
+	// Keep reading random bytes until buffer is filled
+	for n < len(buf) {
+		if m, err := Reader.Read(buf); err != nil {
+			return nil
+		} else {
+			n += m
+		}
+	}
+
+	return nil
+}
+
 // Generates a uniformly distributed random password with length n.
 // The password space can be defined with the CharSet parameter s.
 func Generate(n int, s CharSet) ([]byte, error) {
@@ -96,7 +112,7 @@ func Generate(n int, s CharSet) ([]byte, error) {
 
 	for i := 0; i < n; {
 		// Generate remaining random bytes
-		if _, err := Reader.Read(pass[i:]); err != nil {
+		if err := readRandomBytes(pass[i:]); err != nil {
 			return nil, err
 		}
 
@@ -129,7 +145,7 @@ func GenerateHex(n int) ([]byte, error) {
 	src := make([]byte, hex.DecodedLen(m)) // Random bytes
 	dst := make([]byte, m)                 // Hexadecimal bytes
 
-	if _, err := Reader.Read(src); err != nil {
+	if err := readRandomBytes(src); err != nil {
 		return nil, err
 	}
 
@@ -154,7 +170,7 @@ func GenerateBase32(n int) ([]byte, error) {
 	src := make([]byte, Base32Alphabet.DecodedLen(m))
 	dst := make([]byte, m)
 
-	if _, err := Reader.Read(src); err != nil {
+	if err := readRandomBytes(src); err != nil {
 		return nil, err
 	}
 
