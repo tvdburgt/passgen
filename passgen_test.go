@@ -4,6 +4,7 @@ import (
 	"bytes"
 	crand "crypto/rand"
 	"math/rand"
+	"strings"
 	"testing"
 	"unicode"
 )
@@ -22,30 +23,30 @@ func (src *randSource) Read(p []byte) (int, error) {
 
 func Benchmark256Base32(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		GenerateBase32(256)
+		Base32(256)
 	}
 }
 
 func Benchmark256Hex(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		GenerateHex(256)
+		Hex(256)
 	}
 }
 
 func Benchmark256Complete(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Generate(256, SetComplete)
+		Ascii(256, SetComplete)
 	}
 }
 
 func Benchmark256LowerDigit(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Generate(256, SetLower|SetDigit)
+		Ascii(256, SetLower|SetDigit)
 	}
 }
 
-func TestGenerateCharRange(t *testing.T) {
-	pass, err := Generate(1000, SetComplete)
+func TestAsciiCharRange(t *testing.T) {
+	pass, err := Ascii(1000, SetComplete)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,9 +61,9 @@ func TestGenerateCharRange(t *testing.T) {
 	}
 }
 
-func TestGenerateWithoutSymbols(t *testing.T) {
+func TestAsciiWithoutSymbols(t *testing.T) {
 	mask := SetComplete &^ SetSymbol
-	pass, err := Generate(1000, mask)
+	pass, err := Ascii(1000, mask)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,9 +75,9 @@ func TestGenerateWithoutSymbols(t *testing.T) {
 	}
 }
 
-func TestGenerateLen(t *testing.T) {
+func TestAsciiLen(t *testing.T) {
 	n := 32
-	pass, err := Generate(n, SetComplete)
+	pass, err := Ascii(n, SetComplete)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,17 +87,17 @@ func TestGenerateLen(t *testing.T) {
 			len(pass), n)
 	}
 
-	pass, err = Generate(0, SetComplete)
+	pass, err = Ascii(0, SetComplete)
 	if err != ErrLength {
 		t.Fatalf("Expected ErrLength error")
 	}
 }
 
-func TestGenerateHex(t *testing.T) {
+func TestHex(t *testing.T) {
 	Reader = &randSource{rand.NewSource(0)}
 
 	expected := []byte("01c073624aaf3978514ef8443bb2a859c75fc3cc6af26d5aaa20926f046baa66")
-	pass, err := GenerateHex(len(expected))
+	pass, err := Hex(len(expected))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,11 +111,11 @@ func TestGenerateHex(t *testing.T) {
 	Reader = crand.Reader
 }
 
-func TestGenerateBase32(t *testing.T) {
+func TestBase32(t *testing.T) {
 	Reader = &randSource{rand.NewSource(0)}
 
 	expected := []byte("AHAHGYSKV44XQUKO7BCDXMVILHDV7Q6MNLZG2WVKECJG6BDLVJTOZENFUJ4UGI6C")
-	pass, err := GenerateBase32(len(expected))
+	pass, err := Base32(len(expected))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,12 +129,12 @@ func TestGenerateBase32(t *testing.T) {
 	Reader = crand.Reader
 }
 
-func TestGenerate(t *testing.T) {
+func TestAscii(t *testing.T) {
 	Reader = &randSource{rand.NewSource(0)}
 
 	expected := []byte("a5XL<C8ONID>}SV12T$q.3c1$Z-_]8HrGTpU.iDRw'?0`^0B]P9y>7TMA[FO\"jbe")
 
-	pass, err := Generate(len(expected), SetComplete)
+	pass, err := Ascii(len(expected), SetComplete)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,4 +146,32 @@ func TestGenerate(t *testing.T) {
 	}
 
 	Reader = crand.Reader
+}
+
+func TestDiceware(t *testing.T) {
+	DicewareDict = ""
+	n := 6
+	if _, _, err := Diceware(n, ""); err == nil {
+		t.Error("no error for empty DicewareDict")
+	}
+
+	DicewareDict = "diceware-en.txt"
+	phrase, m, err := Diceware(n, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// File has 7776 words, 26 words that end with "'s" are ignored
+	if m != 7750 {
+		t.Errorf("%s contains %d words, but m = %d",
+			DicewareDict, 7750, m)
+	}
+
+	if len(phrase) < n {
+		t.Errorf("len(phrase) = %d (n = %d)", len(phrase), n)
+	}
+
+	if strings.ContainsAny(string(phrase), " ") {
+		t.Errorf("phrase '%s' contains spaces (sep = \"\")", phrase)
+	}
 }

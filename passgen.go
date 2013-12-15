@@ -2,20 +2,26 @@
 // Use of this source code is governed by the MIT license,
 // that can be found in the LICENSE file.
 
-// Package passgen implements several fine-grained random password generator
-// functions.
+// Package passgen provides several cryptographicaly secure pseudorandom
+// pass{word,phrase} generator methods.
 package passgen
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/base32"
 	"encoding/hex"
 	"errors"
 	"io"
 	"math"
+	"math/big"
+	"os"
+	"strings"
+	"unicode"
 )
 
-// CharSet represents a set of printable ASCII characters.
+// CharSet represents the set of printable ASCII characters.
 // The maximum number of characters is 95. All printable characters are
 // available in the continuous range of [32,126].
 type CharSet uint8
@@ -48,14 +54,17 @@ var (
 
 // Reader is a global instance of a random reader, used by the random password
 // generator functions in this package. Reader defaults to the cryptographically
-// secure pseudo-random generator in crypto/rand.
+// secure pseudorandom generator in crypto/rand.
 var Reader io.Reader = rand.Reader
 
 // Base32Alphabet is the encoding alphabet used by the base32 generator
 // function. Base32Alphabet defaults to base32.StdEncoding (see RFC 4648).
 var Base32Alphabet *base32.Encoding = base32.StdEncoding
 
-func (set CharSet) cardinality() (c int) {
+// Dictionary file to be used by the diceware method.
+var DicewareDict = "/usr/share/dict/words"
+
+func (set CharSet) Cardinality() (c int) {
 	for i, s := range charSets {
 		if set&(1<<CharSet(i)) != 0 {
 			c += len(s)
@@ -65,7 +74,7 @@ func (set CharSet) cardinality() (c int) {
 }
 
 func (set CharSet) table() []byte {
-	table := make([]byte, 0, set.cardinality())
+	table := make([]byte, 0, set.Cardinality())
 	for i, s := range charSets {
 		if set&(1<<CharSet(i)) != 0 {
 			table = append(table, []byte(s)...)
@@ -80,7 +89,7 @@ func readRandomBytes(buf []byte) error {
 	// Keep reading random bytes until buffer is filled
 	for n < len(buf) {
 		if m, err := Reader.Read(buf); err != nil {
-			return nil
+			return err
 		} else {
 			n += m
 		}
@@ -89,9 +98,10 @@ func readRandomBytes(buf []byte) error {
 	return nil
 }
 
-// Generates a uniformly distributed random password with length n.
-// The password space can be defined with the CharSet parameter s.
-func Generate(n int, s CharSet) ([]byte, error) {
+// Generates a uniformly distributed random ASCII string with length n.
+// The password space consists of printable ASCII chars and can be narrowed down
+// with the CharSet bitmask s.
+func Ascii(n int, s CharSet) ([]byte, error) {
 	if n <= 0 {
 		return nil, ErrLength
 	}
@@ -133,7 +143,7 @@ func Generate(n int, s CharSet) ([]byte, error) {
 }
 
 // Generates a uniformly distributed random hex string (base16) with length n.
-func GenerateHex(n int) ([]byte, error) {
+func Hex(n int) ([]byte, error) {
 	if n <= 0 {
 		return nil, ErrLength
 	}
@@ -155,7 +165,7 @@ func GenerateHex(n int) ([]byte, error) {
 }
 
 // Generates a uniformly distributed random base32 string with length n.
-func GenerateBase32(n int) ([]byte, error) {
+func Base32(n int) ([]byte, error) {
 	if n <= 0 {
 		return nil, ErrLength
 	}
@@ -177,4 +187,58 @@ func GenerateBase32(n int) ([]byte, error) {
 	Base32Alphabet.Encode(dst, src)
 
 	return dst[:n], nil
+}
+
+// Selects n random words from the specified dictionary file (DicewareDict).
+// Words can be separated with the sep string (usually "" or " ").
+// Aside from the generated passphrase, the dictionary size m (i.e. number of
+// selectable words) is returned. This can be useful for determining the
+// entropy of the resulting passphrase: log2(n^m).
+func Diceware(n int, sep string) (phrase []byte, m int, err error) {
+	dict, err := os.Open(DicewareDict)
+	if err != nil {
+		return
+	}
+
+	// Copy all dictionary words to a slice
+	var words []string
+	scanner := bufio.NewScanner(dict)
+	for scanner.Scan() {
+		w := scanner.Text()
+		switch {
+		case len(w) == 0: // Empty word
+			break
+		case strings.HasSuffix(w, "'s"): // Plural form
+			break
+		case unicode.IsUpper(rune(w[0])): // Starts with capital
+			break
+		default:
+			words = append(words, scanner.Text())
+			m++
+		}
+	}
+	if scanner.Err() != nil {
+		return
+	}
+
+	max := big.NewInt(int64(m))
+	var pos *big.Int
+	var buffer bytes.Buffer
+	for i := 0; i < n; i++ {
+		if pos, err = rand.Int(Reader, max); err != nil {
+			return
+		}
+		if i > 0 {
+			buffer.WriteString(sep)
+		}
+		buffer.WriteString(words[int(pos.Int64())])
+	}
+
+	phrase = buffer.Bytes()
+	return
+}
+
+// Calculates entropy of a password with length n from a set of m possible symbols.
+func Entropy(n, m int) float64 {
+	return float64(n) * math.Log2(float64(m))
 }
