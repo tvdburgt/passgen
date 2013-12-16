@@ -3,7 +3,9 @@ package passgen
 import (
 	"bytes"
 	crand "crypto/rand"
+	"fmt"
 	"math/rand"
+	"os"
 	"strings"
 	"testing"
 	"unicode"
@@ -13,6 +15,8 @@ type randSource struct {
 	rand.Source
 }
 
+const testDict = "diceware-en.txt"
+
 func (src *randSource) Read(p []byte) (int, error) {
 	for i := range p {
 		// Extract least significant byte from 63-bit integer
@@ -21,28 +25,44 @@ func (src *randSource) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func Benchmark256Base32(b *testing.B) {
+func Benchmark64Base(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Base32(256)
+		Base32(64)
 	}
 }
 
-func Benchmark256Hex(b *testing.B) {
+func Benchmark64Hex(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Hex(256)
+		Hex(64)
 	}
 }
 
-func Benchmark256Complete(b *testing.B) {
+func Benchmark64AsciiComplete(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Ascii(256, SetComplete)
+		Ascii(64, SetComplete)
 	}
 }
 
-func Benchmark256LowerDigit(b *testing.B) {
+func Benchmark64AsciiLowerDigit(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		Ascii(256, SetLower|SetDigit)
+		Ascii(64, SetLower|SetDigit)
 	}
+}
+
+func Benchmark10Diceware(b *testing.B) {
+	DicewareDict = testDict
+	for i := 0; i < b.N; i++ {
+		Diceware(10, "")
+	}
+}
+
+func ExampleAscii() {
+	// Generate password with 64 ASCII chars (excluding symbols)
+	password, err := Ascii(64, SetComplete&^SetSymbol)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+	fmt.Println(password)
 }
 
 func TestAsciiCharRange(t *testing.T) {
@@ -148,6 +168,26 @@ func TestAscii(t *testing.T) {
 	Reader = crand.Reader
 }
 
+func TestInvalidReader(t *testing.T) {
+	var err error
+	Reader = os.Stdin
+
+	if _, err = Ascii(1, SetComplete); err == nil {
+		t.Error("Ascii: err == nil with invalid Reader")
+	}
+	if _, err = Hex(1); err == nil {
+		t.Error("Hex: err == nil with invalid Reader")
+	}
+	if _, err = Base32(1); err == nil {
+		t.Error("Ascii: err == nil with invalid Reader")
+	}
+	if _, _, err = Diceware(1, ""); err == nil {
+		t.Error("Diceware: err == nil with invalid Reader")
+	}
+
+	Reader = crand.Reader
+}
+
 func TestDiceware(t *testing.T) {
 	DicewareDict = ""
 	n := 6
@@ -155,7 +195,7 @@ func TestDiceware(t *testing.T) {
 		t.Error("no error for empty DicewareDict")
 	}
 
-	DicewareDict = "diceware-en.txt"
+	DicewareDict = testDict
 	phrase, m, err := Diceware(n, "")
 	if err != nil {
 		t.Fatal(err)
@@ -172,6 +212,6 @@ func TestDiceware(t *testing.T) {
 	}
 
 	if strings.ContainsAny(string(phrase), " ") {
-		t.Errorf("phrase '%s' contains spaces (sep = \"\")", phrase)
+		t.Errorf(`phrase "%s" contains spaces (sep = "")`, phrase)
 	}
 }
