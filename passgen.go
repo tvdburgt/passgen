@@ -23,7 +23,7 @@ import (
 
 // CharSet represents the set of printable ASCII characters.
 // The maximum number of characters is 95. All printable characters are
-// available in the continuous range of [32,126].
+// available in the continuous range of [32, 126].
 type CharSet uint8
 
 const (
@@ -51,16 +51,16 @@ var (
 	}
 )
 
-// Reader is a global instance of a random reader, used by the random password
+// Rng is a global instance of a random reader, used by the random password
 // generator functions in this package. Reader defaults to the cryptographically
 // secure pseudorandom generator in crypto/rand.
-var Reader io.Reader = rand.Reader
+var Rng io.Reader = rand.Reader
 
-// Base32Alphabet is the encoding alphabet used by the base32 generator
+// Base32Alphabet is the encoding alphabet used by the Base32 generator
 // function. Base32Alphabet defaults to base32.StdEncoding (see RFC 4648).
 var Base32Alphabet *base32.Encoding = base32.StdEncoding
 
-// Dictionary file to be used by the diceware method.
+// Dictionary file to be used by the Diceware method.
 var DicewareDict = "/usr/share/dict/words"
 
 // Cardinality returns the charset Size.
@@ -81,21 +81,6 @@ func (set CharSet) table() []byte {
 		}
 	}
 	return table
-}
-
-func readRandomBytes(buf []byte) error {
-	n := 0
-
-	// Keep reading random bytes until buffer is filled
-	for n < len(buf) {
-		if m, err := Reader.Read(buf); err != nil {
-			return err
-		} else {
-			n += m
-		}
-	}
-
-	return nil
 }
 
 // Ascii generates a uniformly distributed random ASCII string with length n.
@@ -122,7 +107,7 @@ func Ascii(n int, s CharSet) ([]byte, error) {
 
 	for i := 0; i < n; {
 		// Generate remaining random bytes
-		if err := readRandomBytes(pass[i:]); err != nil {
+		if _, err := io.ReadFull(Rng, pass[i:]); err != nil {
 			return nil, err
 		}
 
@@ -155,7 +140,7 @@ func Hex(n int) ([]byte, error) {
 	src := make([]byte, hex.DecodedLen(m)) // Random bytes
 	dst := make([]byte, m)                 // Hexadecimal bytes
 
-	if err := readRandomBytes(src); err != nil {
+	if _, err := io.ReadFull(Rng, src); err != nil {
 		return nil, err
 	}
 
@@ -180,7 +165,7 @@ func Base32(n int) ([]byte, error) {
 	src := make([]byte, Base32Alphabet.DecodedLen(m))
 	dst := make([]byte, m)
 
-	if err := readRandomBytes(src); err != nil {
+	if _, err := io.ReadFull(Rng, src); err != nil {
 		return nil, err
 	}
 
@@ -189,8 +174,9 @@ func Base32(n int) ([]byte, error) {
 	return dst[:n], nil
 }
 
-// Dicware selects n random words from the specified dictionary file (DicewareDict).
-// Words can be separated with the sep string (usually "" or " ").
+// Diceware selects n random words from the specified dictionary file (DicewareDict).
+// Words are separated with the sep parameter (usually "" or " "). The dictionary
+// format is one word per line.
 // Aside from the generated passphrase, the dictionary size m (i.e. number of
 // selectable words) is returned. This can be useful for determining the
 // entropy of the resulting passphrase (See the Entropy function).
@@ -207,13 +193,13 @@ func Diceware(n int, sep string) (phrase []byte, m int, err error) {
 		w := scanner.Text()
 		// Apply crude word filtering
 		switch {
-		// Empty line
+		// Skip empty lines
 		case len(w) == 0:
 			break
-		// Plural format
+		// Skip words with Plural format
 		case strings.HasSuffix(w, "'s"):
 			break
-		// Starts with capital
+		// Skip words that start with a capital
 		case unicode.IsUpper(rune(w[0])):
 			break
 		default:
@@ -229,7 +215,7 @@ func Diceware(n int, sep string) (phrase []byte, m int, err error) {
 	var pos *big.Int
 	var buffer bytes.Buffer
 	for i := 0; i < n; i++ {
-		if pos, err = rand.Int(Reader, max); err != nil {
+		if pos, err = rand.Int(Rng, max); err != nil {
 			return
 		}
 		if i > 0 {

@@ -1,3 +1,7 @@
+// Copright (c) 2013 Tijmen van der Burgt
+// Use of this source code is governed by the MIT license,
+// that can be found in the LICENSE file.
+
 package passgen
 
 import (
@@ -15,7 +19,7 @@ type randSource struct {
 	rand.Source
 }
 
-const testDict = "diceware-en.txt"
+const testDict = "diceware-words.txt"
 
 func (src *randSource) Read(p []byte) (int, error) {
 	for i := range p {
@@ -114,7 +118,7 @@ func TestAsciiLen(t *testing.T) {
 }
 
 func TestHex(t *testing.T) {
-	Reader = &randSource{rand.NewSource(0)}
+	Rng = &randSource{rand.NewSource(0)}
 
 	expected := []byte("01c073624aaf3978514ef8443bb2a859c75fc3cc6af26d5aaa20926f046baa66")
 	pass, err := Hex(len(expected))
@@ -128,11 +132,11 @@ func TestHex(t *testing.T) {
 	Generated: %s`, expected, pass)
 	}
 
-	Reader = crand.Reader
+	Rng = crand.Reader
 }
 
 func TestBase32(t *testing.T) {
-	Reader = &randSource{rand.NewSource(0)}
+	Rng = &randSource{rand.NewSource(0)}
 
 	expected := []byte("AHAHGYSKV44XQUKO7BCDXMVILHDV7Q6MNLZG2WVKECJG6BDLVJTOZENFUJ4UGI6C")
 	pass, err := Base32(len(expected))
@@ -146,11 +150,11 @@ func TestBase32(t *testing.T) {
 	Generated: %s`, expected, pass)
 	}
 
-	Reader = crand.Reader
+	Rng = crand.Reader
 }
 
 func TestAscii(t *testing.T) {
-	Reader = &randSource{rand.NewSource(0)}
+	Rng = &randSource{rand.NewSource(0)}
 
 	expected := []byte("a5XL<C8ONID>}SV12T$q.3c1$Z-_]8HrGTpU.iDRw'?0`^0B]P9y>7TMA[FO\"jbe")
 
@@ -165,12 +169,12 @@ func TestAscii(t *testing.T) {
 	Generated: %s`, expected, pass)
 	}
 
-	Reader = crand.Reader
+	Rng = crand.Reader
 }
 
 func TestInvalidReader(t *testing.T) {
 	var err error
-	Reader = os.Stdin
+	Rng = os.Stdin
 
 	if _, err = Ascii(1, SetComplete); err == nil {
 		t.Error("Ascii: err == nil with invalid Reader")
@@ -185,7 +189,7 @@ func TestInvalidReader(t *testing.T) {
 		t.Error("Diceware: err == nil with invalid Reader")
 	}
 
-	Reader = crand.Reader
+	Rng = crand.Reader
 }
 
 func TestDiceware(t *testing.T) {
