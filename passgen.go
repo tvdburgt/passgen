@@ -40,7 +40,6 @@ const (
 var (
 	ErrLength = errors.New("passgen: invalid password length")
 	ErrSet    = errors.New("passgen: character set is empty")
-	ErrRead   = errors.New("passgen: read failed")
 
 	charSets = [...]string{
 		"abcdefghijklmnopqrstuvwxyz",
@@ -64,6 +63,7 @@ var Base32Alphabet *base32.Encoding = base32.StdEncoding
 // Dictionary file to be used by the diceware method.
 var DicewareDict = "/usr/share/dict/words"
 
+// Cardinality returns the charset Size.
 func (set CharSet) Cardinality() (c int) {
 	for i, s := range charSets {
 		if set&(1<<CharSet(i)) != 0 {
@@ -98,7 +98,7 @@ func readRandomBytes(buf []byte) error {
 	return nil
 }
 
-// Generates a uniformly distributed random ASCII string with length n.
+// Ascii generates a uniformly distributed random ASCII string with length n.
 // The password space consists of printable ASCII chars and can be narrowed down
 // with the CharSet bitmask s.
 func Ascii(n int, s CharSet) ([]byte, error) {
@@ -142,7 +142,7 @@ func Ascii(n int, s CharSet) ([]byte, error) {
 	return pass, nil
 }
 
-// Generates a uniformly distributed random hex string (base16) with length n.
+// Hex generates a uniformly distributed random hex string (base16) with length n.
 func Hex(n int) ([]byte, error) {
 	if n <= 0 {
 		return nil, ErrLength
@@ -164,7 +164,7 @@ func Hex(n int) ([]byte, error) {
 	return dst[:n], nil
 }
 
-// Generates a uniformly distributed random base32 string with length n.
+// Base32 generates a uniformly distributed random base32 string with length n.
 func Base32(n int) ([]byte, error) {
 	if n <= 0 {
 		return nil, ErrLength
@@ -189,11 +189,11 @@ func Base32(n int) ([]byte, error) {
 	return dst[:n], nil
 }
 
-// Selects n random words from the specified dictionary file (DicewareDict).
+// Dicware selects n random words from the specified dictionary file (DicewareDict).
 // Words can be separated with the sep string (usually "" or " ").
 // Aside from the generated passphrase, the dictionary size m (i.e. number of
 // selectable words) is returned. This can be useful for determining the
-// entropy of the resulting passphrase: log2(n^m).
+// entropy of the resulting passphrase (See the Entropy function).
 func Diceware(n int, sep string) (phrase []byte, m int, err error) {
 	dict, err := os.Open(DicewareDict)
 	if err != nil {
@@ -205,12 +205,16 @@ func Diceware(n int, sep string) (phrase []byte, m int, err error) {
 	scanner := bufio.NewScanner(dict)
 	for scanner.Scan() {
 		w := scanner.Text()
+		// Apply crude word filtering
 		switch {
-		case len(w) == 0: // Empty word
+		// Empty line
+		case len(w) == 0:
 			break
-		case strings.HasSuffix(w, "'s"): // Plural form
+		// Plural format
+		case strings.HasSuffix(w, "'s"):
 			break
-		case unicode.IsUpper(rune(w[0])): // Starts with capital
+		// Starts with capital
+		case unicode.IsUpper(rune(w[0])):
 			break
 		default:
 			words = append(words, scanner.Text())
@@ -238,7 +242,8 @@ func Diceware(n int, sep string) (phrase []byte, m int, err error) {
 	return
 }
 
-// Calculates entropy of a password with length n from a set of m possible symbols.
+// Entropy calculates password strength (in bits) of a password with length n,
+// selected from a set of m possible symbols.
 func Entropy(n, m int) float64 {
 	return float64(n) * math.Log2(float64(m))
 }
