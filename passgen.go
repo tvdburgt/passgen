@@ -1,7 +1,3 @@
-// Copright (c) 2013 Tijmen van der Burgt
-// Use of this source code is governed by the MIT license,
-// that can be found in the LICENSE file.
-
 // Package passgen provides several cryptographicaly secure pseudorandom
 // pass{word,phrase} generator methods.
 package passgen
@@ -16,7 +12,6 @@ import (
 	"io"
 	"math"
 	"math/big"
-	"os"
 	"strings"
 	"unicode"
 )
@@ -40,6 +35,7 @@ const (
 var (
 	ErrLength = errors.New("passgen: invalid password length")
 	ErrSet    = errors.New("passgen: character set is empty")
+	ErrDict   = errors.New("passgen: dictionary is empty")
 
 	charSets = [...]string{
 		"abcdefghijklmnopqrstuvwxyz",
@@ -59,9 +55,6 @@ var Rng io.Reader = rand.Reader
 // Base32Alphabet is the encoding alphabet used by the Base32 generator
 // function. Base32Alphabet defaults to base32.StdEncoding (see RFC 4648).
 var Base32Alphabet *base32.Encoding = base32.StdEncoding
-
-// Dictionary file to be used by the Diceware method.
-var DicewareDict = "/usr/share/dict/words"
 
 // Cardinality returns the charset Size.
 func (set CharSet) Cardinality() (c int) {
@@ -174,18 +167,13 @@ func Base32(n int) ([]byte, error) {
 	return dst[:n], nil
 }
 
-// Diceware selects n random words from the specified dictionary file (DicewareDict).
+// Diceware selects n random words from the specified dictionary reader dict.
 // Words are separated with the sep parameter (usually "" or " "). The dictionary
-// format is one word per line.
+// source format is one word per line.
 // Aside from the generated passphrase, the dictionary size m (i.e. number of
 // selectable words) is returned. This can be useful for determining the
 // entropy of the resulting passphrase (See the Entropy function).
-func Diceware(n int, sep string) (phrase []byte, m int, err error) {
-	dict, err := os.Open(DicewareDict)
-	if err != nil {
-		return
-	}
-
+func Diceware(dict io.Reader, n int, sep string) (phrase []byte, m int, err error) {
 	// Copy all dictionary words to a slice
 	var words []string
 	scanner := bufio.NewScanner(dict)
@@ -204,16 +192,22 @@ func Diceware(n int, sep string) (phrase []byte, m int, err error) {
 			break
 		default:
 			words = append(words, scanner.Text())
-			m++
 		}
 	}
+
 	if scanner.Err() != nil {
 		return
 	}
 
-	max := big.NewInt(int64(m))
+	if len(words) == 0 {
+		return nil, 0, ErrDict
+	}
+
 	var pos *big.Int
 	var buffer bytes.Buffer
+	m = len(words)
+	max := big.NewInt(int64(m))
+
 	for i := 0; i < n; i++ {
 		if pos, err = rand.Int(Rng, max); err != nil {
 			return

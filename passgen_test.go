@@ -1,13 +1,10 @@
-// Copright (c) 2013 Tijmen van der Burgt
-// Use of this source code is governed by the MIT license,
-// that can be found in the LICENSE file.
-
 package passgen
 
 import (
 	"bytes"
 	crand "crypto/rand"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"strings"
@@ -19,7 +16,7 @@ type randSource struct {
 	rand.Source
 }
 
-const testDict = "diceware-words.txt"
+type dict []string
 
 func (src *randSource) Read(p []byte) (int, error) {
 	for i := range p {
@@ -29,7 +26,28 @@ func (src *randSource) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func Benchmark64Base(b *testing.B) {
+func (d dict) toBuffer() *bytes.Buffer {
+	return bytes.NewBufferString(strings.Join(d, "\n"))
+}
+
+var words = dict{
+	"then",
+	"there",
+	"these",
+	"theta",
+	"they",
+	"thick",
+	"thief",
+	"thigh",
+	"thin",
+	"thine",
+	"thing",
+	"think",
+	"third",
+	"this",
+}
+
+func Benchmark64Base32(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Base32(64)
 	}
@@ -54,19 +72,32 @@ func Benchmark64AsciiLowerDigit(b *testing.B) {
 }
 
 func Benchmark10Diceware(b *testing.B) {
-	DicewareDict = testDict
 	for i := 0; i < b.N; i++ {
-		Diceware(10, "")
+		Diceware(words.toBuffer(), 10, "")
 	}
 }
 
 func ExampleAscii() {
-	// Generate password with 64 ASCII chars (excluding symbols)
-	password, err := Ascii(64, SetComplete&^SetSymbol)
+	password, err := Ascii(20, SetComplete&^SetSymbol)
 	if err != nil {
-		fmt.Println("error:", err)
+		log.Fatal(err)
 	}
-	fmt.Println(password)
+
+	fmt.Printf("Generated password: %q\n", password)
+}
+
+func ExampleDiceware() {
+	dict, err := os.Open("/usr/share/dict/words")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	password, _, err := Diceware(dict, 5, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("Generated password: %q\n", password)
 }
 
 func TestAsciiCharRange(t *testing.T) {
@@ -172,7 +203,7 @@ func TestAscii(t *testing.T) {
 	Rng = crand.Reader
 }
 
-func TestInvalidReader(t *testing.T) {
+func TestInvalidRng(t *testing.T) {
 	var err error
 	Rng = os.Stdin
 
@@ -183,32 +214,33 @@ func TestInvalidReader(t *testing.T) {
 		t.Error("Hex: err == nil with invalid Reader")
 	}
 	if _, err = Base32(1); err == nil {
-		t.Error("Ascii: err == nil with invalid Reader")
+		t.Error("Base32: err == nil with invalid Reader")
 	}
-	if _, _, err = Diceware(1, ""); err == nil {
+	if _, _, err = Diceware(words.toBuffer(), 1, ""); err == nil {
 		t.Error("Diceware: err == nil with invalid Reader")
 	}
 
 	Rng = crand.Reader
 }
 
-func TestDiceware(t *testing.T) {
-	DicewareDict = ""
-	n := 6
-	if _, _, err := Diceware(n, ""); err == nil {
-		t.Error("no error for empty DicewareDict")
+func TestDicewareInvalidDict(t *testing.T) {
+	_, _, err := Diceware(os.Stdin, 1, "")
+	if err != ErrDict {
+		t.Fatal("Expected ErrDict for invalid dict")
 	}
+}
 
-	DicewareDict = testDict
-	phrase, m, err := Diceware(n, "")
+func TestDiceware(t *testing.T) {
+	n := 6
+
+	phrase, m, err := Diceware(words.toBuffer(), n, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// File has 7776 words, 26 words that end with "'s" are ignored
-	if m != 7750 {
-		t.Errorf("%s contains %d words, but m = %d",
-			DicewareDict, 7750, m)
+	if m != len(words) {
+		t.Errorf("dict contains %d words, but m = %d",
+			len(words), m)
 	}
 
 	if len(phrase) < n {
